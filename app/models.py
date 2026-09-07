@@ -20,3 +20,5 @@ class Ticket:
     priority: str | None
 
     source_url: str
+
+    assigned_to: str | None = None

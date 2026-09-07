@@ -1,13 +1,52 @@
-from datetime import datetime
+import json
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 from app.connectors.gmail import get_gmail_tickets
+from app.database import get_assignment, init_db, set_assignment
 
-from app.models import Ticket
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
-app = FastAPI()
+# =========================================================
+# Request Models
+# =========================================================
+
+class AssignmentRequest(BaseModel):
+    source: str
+    source_id: str
+    user_id: str | None = None
+
+
+# =========================================================
+# Application Startup
+# =========================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+# =========================================================
+# FastAPI Application
+# =========================================================
+
+app = FastAPI(
+    title="LarpDesk",
+    description="Unified help desk dashboard for Jira, Outlook and Gmail",
+    lifespan=lifespan,
+)
+
+
+# =========================================================
+# CORS
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,46 +60,55 @@ app.add_middleware(
 )
 
 
-#tickets = [
-#    Ticket(
-#        id=1,
-#        source="jira",
-#        source_id="TEST-1",
-#        title="VPN not working",
-#        requester="John Smith",
-#        company="Acme Corp",
-#        body="User cannot connect to the VPN.",
-#        created_at=datetime.now(),
-#        updated_at=datetime.now(),
-#        status="new",
-#        priority="high",
-#        source_url="https://example.com",
-#    ),
-#    Ticket(
-#        id=2,
-#        source="outlook",
-#        source_id="email-123",
-#        title="Printer issue",
-#        requester="Jane Doe",
-#        company="Example Ltd",
-#        body="The office printer is not responding.",
-#        created_at=datetime.now(),
-#        updated_at=datetime.now(),
-#        status="new",
-#        priority=None,
-#        source_url="https://example.com",
-#    ),
-#]
-
+# =========================================================
+# Routes
+# =========================================================
 
 @app.get("/")
 async def home():
     return {
-        "application": "Help Desk Dashboard",
+        "application": "LarpDesk",
         "status": "running",
     }
 
 
 @app.get("/tickets")
-async def get_tickets():
-    return get_gmail_tickets()
+def get_tickets():
+    tickets = get_gmail_tickets()
+
+    for ticket in tickets:
+        ticket.assigned_to = get_assignment(
+            ticket.source,
+            ticket.source_id,
+        )
+
+    return tickets
+
+
+@app.get("/users")
+async def get_users():
+    users_file = BASE_DIR / "data" / "users.json"
+
+    with users_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        return json.load(file)
+
+
+@app.post("/assignments")
+async def assign_ticket(
+    assignment: AssignmentRequest,
+):
+    set_assignment(
+        assignment.source,
+        assignment.source_id,
+        assignment.user_id,
+    )
+
+    return {
+        "success": True,
+        "source": assignment.source,
+        "source_id": assignment.source_id,
+        "user_id": assignment.user_id,
+    }
