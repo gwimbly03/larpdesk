@@ -7,8 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.connectors.gmail import get_gmail_tickets
-from app.database import get_assignment, init_db, set_assignment
-
+from app.database import (
+    get_assignment,
+    get_ticket_status,
+    init_db,
+    set_assignment,
+    set_ticket_status,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -22,6 +27,10 @@ class AssignmentRequest(BaseModel):
     source_id: str
     user_id: str | None = None
 
+class StatusRequest(BaseModel):
+    source: str
+    source_id: str
+    status: str
 
 # =========================================================
 # Application Startup
@@ -71,7 +80,6 @@ async def home():
         "status": "running",
     }
 
-
 @app.get("/tickets")
 def get_tickets():
     tickets = get_gmail_tickets()
@@ -82,8 +90,14 @@ def get_tickets():
             ticket.source_id,
         )
 
-    return tickets
+        saved_status = get_ticket_status(
+            ticket.source,
+            ticket.source_id,
+        )
 
+        ticket.status = saved_status or "new"
+
+    return tickets
 
 @app.get("/users")
 async def get_users():
@@ -111,4 +125,31 @@ async def assign_ticket(
         "source": assignment.source,
         "source_id": assignment.source_id,
         "user_id": assignment.user_id,
+    }
+
+@app.get("/statuses")
+async def get_statuses():
+    statuses_file = BASE_DIR / "data" / "status.json"
+
+    with statuses_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        return json.load(file)
+
+@app.post("/statuses")
+async def update_ticket_status(
+    status_update: StatusRequest,
+):
+    set_ticket_status(
+        status_update.source,
+        status_update.source_id,
+        status_update.status,
+    )
+
+    return {
+        "success": True,
+        "source": status_update.source,
+        "source_id": status_update.source_id,
+        "status": status_update.status,
     }

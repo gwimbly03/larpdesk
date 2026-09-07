@@ -1,0 +1,18 @@
+[
+  {
+    "id": "new",
+    "name": "New"
+  },
+  {
+    "id": "in_progress",
+    "name": "In Progress"
+  },
+  {
+    "id": "waiting",
+    "name": "Waiting"
+  },
+  {
+    "id": "resolved",
+    "name": "Resolved"
+  }
+]

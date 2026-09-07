@@ -8,12 +8,17 @@ function App() {
 
   const [tickets, setTickets] = useState([]);
   const [assignees, setAssignees] = useState([]);
+  const [statuses, setStatuses] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const [selectedTicket, setSelectedTicket] = useState(null);
+
+  // =========================================================
+  // Fetch Tickets
+  // =========================================================
 
   const fetchTickets = async (isRefresh = false) => {
     if (isRefresh) {
@@ -25,9 +30,7 @@ function App() {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${API_URL}/tickets`
-      );
+      const response = await fetch(`${API_URL}/tickets`);
 
       if (!response.ok) {
         throw new Error(
@@ -47,43 +50,88 @@ function App() {
     }
   };
 
+  // =========================================================
+  // Fetch Users
+  // =========================================================
+
   const fetchAssignees = async () => {
-      try {
-        const response = await fetch(
-          `${API_URL}/users`
-        );
+    try {
+      const response = await fetch(`${API_URL}/users`);
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch assignees: ${response.status}`
-          );
-        }
-
-        const data = await response.json();
-
-        setAssignees(data);
-      } catch (error) {
-        console.error(
-          "Could not load assignees:",
-          error
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch users: ${response.status}`
         );
       }
-    };
 
-    useEffect(() => {
-      fetchTickets();
-      fetchAssignees();
-    }, []);
+      const data = await response.json();
 
-    const filteredTickets =
-      sourceFilter === "all"
-        ? tickets
-        : tickets.filter(
-            (ticket) =>
-              ticket.source?.toLowerCase() === sourceFilter
-          );
+      setAssignees(data);
+    } catch (error) {
+      console.error(
+        "Could not load users:",
+        error
+      );
+    }
+  };
 
-    const handleAssignment = async (ticket, assigneeId) => {
+  // =========================================================
+  // Fetch Statuses
+  // =========================================================
+
+  const fetchStatuses = async () => {
+    try {
+      const response = await fetch(
+        `${API_URL}/statuses`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch statuses: ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      setStatuses(data);
+    } catch (error) {
+      console.error(
+        "Could not load statuses:",
+        error
+      );
+    }
+  };
+
+  // =========================================================
+  // Initial Load
+  // =========================================================
+
+  useEffect(() => {
+    fetchTickets();
+    fetchAssignees();
+    fetchStatuses();
+  }, []);
+
+  // =========================================================
+  // Ticket Filtering
+  // =========================================================
+
+  const filteredTickets =
+    sourceFilter === "all"
+      ? tickets
+      : tickets.filter(
+          (ticket) =>
+            ticket.source?.toLowerCase() === sourceFilter
+        );
+
+  // =========================================================
+  // Assignment
+  // =========================================================
+
+  const handleAssignment = async (
+    ticket,
+    assigneeId
+  ) => {
     try {
       const response = await fetch(
         `${API_URL}/assignments`,
@@ -101,7 +149,9 @@ function App() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to save assignment");
+        throw new Error(
+          "Failed to save assignment"
+        );
       }
 
       setTickets((currentTickets) =>
@@ -132,9 +182,81 @@ function App() {
         });
       }
     } catch (error) {
-      console.error("Could not assign ticket:", error);
+      console.error(
+        "Could not assign ticket:",
+        error
+      );
     }
   };
+
+  // =========================================================
+  // Status
+  // =========================================================
+
+  const handleStatusChange = async (
+    ticket,
+    newStatus
+  ) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/statuses`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            source: ticket.source,
+            source_id: ticket.source_id,
+            status: newStatus,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to save ticket status"
+        );
+      }
+
+      setTickets((currentTickets) =>
+        currentTickets.map((currentTicket) => {
+          const isSameTicket =
+            currentTicket.source === ticket.source &&
+            currentTicket.source_id === ticket.source_id;
+
+          if (!isSameTicket) {
+            return currentTicket;
+          }
+
+          return {
+            ...currentTicket,
+            status: newStatus,
+          };
+        })
+      );
+
+      if (
+        selectedTicket &&
+        selectedTicket.source === ticket.source &&
+        selectedTicket.source_id === ticket.source_id
+      ) {
+        setSelectedTicket({
+          ...selectedTicket,
+          status: newStatus,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "Could not update ticket status:",
+        error
+      );
+    }
+  };
+
+  // =========================================================
+  // Helpers
+  // =========================================================
 
   const getAssigneeName = (assigneeId) => {
     if (!assigneeId) {
@@ -150,6 +272,20 @@ function App() {
       : "Unknown";
   };
 
+  const getStatusName = (statusId) => {
+    const status = statuses.find(
+      (item) => item.id === statusId
+    );
+
+    return status
+      ? status.name
+      : statusId || "Unknown";
+  };
+
+  // =========================================================
+  // Loading Screen
+  // =========================================================
+
   if (loading) {
     return (
       <div className="message">
@@ -157,6 +293,10 @@ function App() {
       </div>
     );
   }
+
+  // =========================================================
+  // App
+  // =========================================================
 
   return (
     <div className="app">
@@ -262,9 +402,33 @@ function App() {
                     </p>
                   </div>
 
-                  <span className="status">
-                    {ticket.status}
-                  </span>
+                  <div className="status-control">
+                    <label
+                      htmlFor={`status-${ticket.source}-${ticket.source_id}`}
+                    >
+                      Status
+                    </label>
+
+                    <select
+                      id={`status-${ticket.source}-${ticket.source_id}`}
+                      value={ticket.status}
+                      onChange={(event) =>
+                        handleStatusChange(
+                          ticket,
+                          event.target.value
+                        )
+                      }
+                    >
+                      {statuses.map((status) => (
+                        <option
+                          key={status.id}
+                          value={status.id}
+                        >
+                          {status.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <p className="body">
@@ -434,8 +598,9 @@ function App() {
                 </span>
 
                 <span>
-                  {selectedTicket.status ||
-                    "Unknown"}
+                  {getStatusName(
+                    selectedTicket.status
+                  )}
                 </span>
               </div>
 
