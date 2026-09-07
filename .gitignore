@@ -1,0 +1,11 @@
+.direnv/
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+frontend/node_modules/
+frontend/dist/
+.vscode/
+.idea/
+.DS_Store
