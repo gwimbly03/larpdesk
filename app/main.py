@@ -18,9 +18,7 @@ from app.database import (
 BASE_DIR = Path(__file__).resolve().parent
 
 
-# =========================================================
-# Request Models
-# =========================================================
+#JIRA_JQL = os.getenv("JIRA_JQL")
 
 class AssignmentRequest(BaseModel):
     source: str
@@ -32,9 +30,6 @@ class StatusRequest(BaseModel):
     source_id: str
     status: str
 
-# =========================================================
-# Application Startup
-# =========================================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,20 +37,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-# =========================================================
-# FastAPI Application
-# =========================================================
-
 app = FastAPI(
     title="LarpDesk",
     description="Unified help desk dashboard for Jira, Outlook and Gmail",
     lifespan=lifespan,
 )
 
-
-# =========================================================
-# CORS
-# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,9 +56,6 @@ app.add_middleware(
 )
 
 
-# =========================================================
-# Routes
-# =========================================================
 
 @app.get("/")
 async def home():
